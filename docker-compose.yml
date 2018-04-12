@@ -1,0 +1,86 @@
+version: '2'
+
+services:
+  redis:
+    image: 'redis:latest'
+    command: 'redis-server --requirepass devpassword'
+    networks:
+      - services_network
+
+  email:
+    image: 'email_dev:latest'
+    environment:
+      - APP_SETTINGS=/data/conf/email.cfg
+    volumes:
+      - ./data:/data
+    networks:
+      - services_network
+    expose:
+      - 8009
+
+  sockets:
+    image: 'nturchi/mylearningchain-socket:latest'
+    ports:
+      - 4000:4000
+  db:
+    image: 'mongo:latest'
+    networks:
+      - services_network
+
+  nginx:
+    build: ./nginx
+    ports:
+      - 80:80
+    depends_on:
+      - back
+    networks:
+      - services_network
+    volumes:
+      - sockets:/sockets/
+
+  auth:
+    image: 'learning_auth:latest'
+    command: uwsgi --ini /data/conf/auth.ini
+    environment:
+      - APP_SETTINGS=/data/conf/auth.cfg
+    volumes:
+      - ./data:/data
+      - sockets:/sockets/
+    depends_on:
+      - db
+    networks:
+      - services_network
+
+  api:
+    image: 'learning_api:latest'
+    command: uwsgi --ini /data/conf/api.ini
+    environment:
+      - APP_SETTINGS=/data/conf/api.cfg
+    volumes:
+      - ./data:/data
+      - sockets:/sockets/
+    depends_on:
+      - db
+    networks:
+      - services_network
+
+  admin:
+    image: 'learning_admin:latest'
+    command: uwsgi --ini /data/conf/admin.ini
+    environment:
+      - APP_SETTINGS=/data/conf/admin.cfg
+    volumes:
+      - ./data:/data
+      - sockets:/sockets/
+    depends_on:
+      - db
+    networks:
+      - services_network
+
+volumes:
+  sockets:
+    driver: local
+
+networks:
+  services_network:
+    driver: bridge
